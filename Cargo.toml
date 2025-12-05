@@ -1,0 +1,33 @@
+[package]
+name = "blackice_proctor"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.33.2"
+raw-cpuid = "11.0"
+image = { version = "0.25", default-features = false, features = ["png"] }
+windows = { version = "0.60.0", features = [
+    # 1. Base Essentials
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Rpc",
+
+    # 2. Network Control
+    "Win32_NetworkManagement_WindowsFirewall",       # High-Level Rules
+    "Win32_NetworkManagement_WindowsFilteringPlatform", # Deep Packet Inspection (Anti-Cheat)
+    "Win32_NetworkManagement_IpHelper",              # Mapping Ports <-> Process IDs (Local script detection)
+    "Win32_Networking_WinSock",                      # For AF_UNSPEC
+    "Win32_NetworkManagement_Ndis",
+
+    # 3. Application Blocking (The "Proctor")
+    "Win32_System_Diagnostics_ToolHelp",             # Snapshotting processes (Detect already running processes)
+    "Win32_System_Threading",                        # Killing processes
+    # "Win32_System_Wmi",                            # (Not Needed) "New Process" Events (Subscribe to events)
+
+    # 4. Anti-Bypass & System Lockdown
+    "Win32_UI_WindowsAndMessaging",                  # Detect Alt-Tab, Remote Session, Fullscreen
+    "Win32_System_DataExchange",                     # Clipboard
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Security",                                # REQUIRED for "SeDebugPrivilege"
+] }
