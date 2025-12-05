@@ -73,14 +73,30 @@ This doc contains testing / working of BlackICE Proctor application
 - The application detected that whitelisted domain i.e. `codeforces.com` was requested by Brave (tested with curl too) and was dropped with the error `ERR_NETWORK_ACCESS_DENIED`. 
 - The browser displayed the standard "Your Internet access is blocked" error page.
 
-**Verdict**: ✅ Application successfully detected a whitelisted domain request from unauthorized process and dropped it. 
+**Verdict**: ✅ Application successfully detected a whitelisted domain request from unauthorized process and dropped it.
 
 <br/>
 <br/>
 <br/>
 
 
-## Test Case 4: VPN Evasion (ProtonVPN)
+## Test Case 4: Block Masquerade (renaming application) cheat
+**Objective**: Detect any application that is running using name of whitelisted processes by checking it's path 
+<p style='center'>
+  <img width="1919" height="1025" alt="8" src="https://github.com/user-attachments/assets/e737b63d-b1ce-435a-8f1d-c3ec2d4d76ad" />
+<p/>
+
+**Observation**: Noita application was detected as Masquerade running under the name of whitelisted process `chrome.exe`.
+
+**Verdict**: ✅ Application successfully detected a Masquerade attempt.
+
+
+<br/>
+<br/>
+<br/>
+
+
+## Test Case 5: VPN Evasion (ProtonVPN)
 **Objective**: Verify resilience against Split Tunneling and Encrypted Tunneling attempts using Proton VPN.
 1. **Scenario 1**: VPN Process Detection
 
