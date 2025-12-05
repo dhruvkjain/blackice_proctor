@@ -52,7 +52,7 @@ BlackICE is a examination proctoring apppliaction written in pure Rust that uses
 <br/>
 <br/>
 
-### Architecture
+## Architecture
 <p align="center">
   <img width="991" height="371" alt="image" src="https://github.com/user-attachments/assets/651fd495-74a7-4997-8269-3023b2fbafd3" />
 <p/>
