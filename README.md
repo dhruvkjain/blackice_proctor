@@ -21,6 +21,7 @@ Contents
 - [Security Features](#security-features)
 - [Filesystem](#filesystem)
 - [Installation and Usage](#installation-and-usage)
+- [Running Application Images and Testing Report](https://github.com/dhruvkjain/blackice_proctor/blob/main/SECURITY_VALIDATION.md)
 
 <br/>
 
@@ -104,6 +105,10 @@ BlackICE is a examination proctoring apppliaction written in pure Rust that uses
         └── vpn.rs          # Low-level Windows API adapter scanning
 ```
 
+<br/>
+<br/>
+
+
 ## Installation and Usage
 
 - **Prerequisites**
@@ -127,6 +132,9 @@ BlackICE is a examination proctoring apppliaction written in pure Rust that uses
   - Select "Run as Administrator".
   - Note: If you run via terminal, ensure the terminal itself has Admin privileges.
 
+<br/>
+<br/>
+
 
 ## Future Improvements 
 
@@ -135,9 +143,3 @@ BlackICE is a examination proctoring apppliaction written in pure Rust that uses
 - **Webcam Monitoring:** Integrate `nokhwa` or `OpenCV` to capture periodic snapshots or detect user presence.
 - **Dynamic Whitelisting:** Fetch the allowed URL/IP list from a secure server at runtime, rather than hardcoding it.
 - **Driver-Level Blocking:** Move the network blocking logic from User Mode (WFP via API) to a Kernel Mode Driver for tamper-proof security.
-
-
-
-
-
-
