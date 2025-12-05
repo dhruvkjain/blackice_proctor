@@ -21,13 +21,7 @@ Contents
 - [Security Features](#security-features)
 - [Filesystem](#filesystem)
 - [Installation and Usage](#installation-and-usage)
-- [Running Application Images and Testing Report](https://github.com/dhruvkjain/blackice_proctor/blob/main/SECURITY_VALIDATION.md)
-
-<br/>
-
-> I have used LLMs help for improvements and boilerplate code
-
-> While the Approach, Architecture and Logic was fully researched and developed by me
+- **[Demo] Running Application Images and Testing:** [System Validation Report](https://github.com/dhruvkjain/blackice_proctor/blob/main/SECURITY_VALIDATION.md)
 
 <br/>
 <br/>
