@@ -1,5 +1,5 @@
 use eframe::{egui, egui::IconData};
-use blackice_proctor::{ProctorApp, network};
+use blackice_proctor::{ProctorApp, network, ReporterActor};
 
 fn main() -> Result<(), eframe::Error> {
     // panic hook
@@ -11,6 +11,7 @@ fn main() -> Result<(), eframe::Error> {
     }));
 
     let icon = load_icon(include_bytes!("./app_icon.png"));
+    let reporter_tx = ReporterActor::spawn("http://localhost:3000/api/logs".to_string());
     
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -22,7 +23,7 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "BlackICE Proctor",
         options,
-        Box::new(|_cc| Ok(Box::new(ProctorApp::default()))),
+        Box::new(|_cc| Ok(Box::new(ProctorApp::new(reporter_tx)))),
     )
 }
 

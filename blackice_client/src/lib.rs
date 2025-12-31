@@ -6,10 +6,12 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 pub mod network;
 pub mod applications;
 pub mod environment;
+pub mod cloud_reporter;
 
 pub use network::*;
 pub use applications::*;
 pub use environment::*;
+pub use cloud_reporter::*;
 
 // this allows background threads to talk to the GUI safely
 pub enum AppMsg {
@@ -31,28 +33,9 @@ pub struct ProctorApp {
     // communication channels
     msg_sender: Sender<AppMsg>, 
     msg_receiver: Receiver<AppMsg>,
+    reporter_tx: Sender<LogEntry>,
 
     wfp_guard: Option<network::WfpGuard>,   // wfp handler
-}
-
-
-impl Default for ProctorApp {
-    fn default() -> Self {
-        // channel for main and threads communication
-        let (tx, rx) = channel();
-        
-        Self {
-            net_active: false,
-            proc_active: false,
-            is_loading: false,
-            logs: vec!["[System Initialized]".into()],
-            watchdog_signal: Arc::new(AtomicBool::new(false)),
-            dns_signal: Arc::new(AtomicBool::new(false)),
-            msg_sender: tx,
-            msg_receiver: rx,
-            wfp_guard: None,
-        }
-    }
 }
 
 // Dead Man's Switch, if user suddenly closes or kills the applicaiton we need to drop the rules and restrictions
@@ -80,7 +63,10 @@ impl eframe::App for ProctorApp {
         // handle async messages from background threads
         while let Ok(msg) = self.msg_receiver.try_recv() {
             match msg {
-                AppMsg::Log(text) => self.logs.push(format!("> {}", text)),
+                AppMsg::Log(text) => {
+                    self.logs.push(format!("> {}", text));
+                    self.report("VIOLATION", &format!("[violation]: {}", text));
+                },
                 
                 AppMsg::Error(err) => {
                     self.logs.push(format!("[ERROR]: {}", err));
@@ -110,9 +96,7 @@ impl eframe::App for ProctorApp {
             }
         }
 
-        // ------------------------------------------
         // egui UI Rendering 
-        // ------------------------------------------
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("");
             ui.add_space(10.0);
@@ -179,6 +163,40 @@ impl eframe::App for ProctorApp {
 }
 
 impl ProctorApp {
+    pub fn new(reporter_tx: Sender<LogEntry>) -> Self {
+        // channel for main and threads communication
+        let (tx, rx) = channel();
+        
+        Self {
+            net_active: false,
+            proc_active: false,
+            is_loading: false,
+            logs: vec!["[System Initialized]".into()],
+            watchdog_signal: Arc::new(AtomicBool::new(false)),
+            dns_signal: Arc::new(AtomicBool::new(false)),
+            msg_sender: tx,
+            msg_receiver: rx,
+            reporter_tx,
+            wfp_guard: None,
+        }
+    }
+
+    fn report(&self, level: &str, msg: &str) {
+        let log = LogEntry {
+            student_id: "student_123".to_string(), // Replace with dynamic ID
+            session_id: "session_abc".to_string(),
+            level: level.to_string(),
+            message: msg.to_string(),
+            timestamp: chrono::Utc::now().timestamp(),
+        };
+
+        // .send() is non-blocking on unbounded channels, or mostly fast on buffered ones.
+        // it simply pushes to the channel memory.
+        if let Err(e) = self.reporter_tx.send(log) {
+            eprintln!("Failed to queue log: {}", e);
+        }
+    }
+
     fn toggle_network(&mut self) {
         if self.is_loading { return; } // prevents double clicks
         self.is_loading = true; // lock UI
@@ -321,3 +339,7 @@ impl ProctorApp {
         self.logs.push(format!("> {}", msg));
     }
 }
+
+
+
+
