@@ -12,6 +12,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible
 };
 
+use crate::cloud_reporter::{AppLogs, ViolationType};
+
 
 // STRICT PATH BINDING
 const STRICT_PATHS: &[(&str, &str)] = &[
@@ -71,8 +73,8 @@ const BANNED_TITLES: &[&str] = &[
     "cursor"
 ];
 
-pub fn start_monitor(keep_running: Arc<AtomicBool>, tx: Sender<String>) {
-    let _ = tx.send("[application]: OPTIMIZED MONITOR STARTED".to_string());
+pub fn start_monitor(keep_running: Arc<AtomicBool>, tx: Sender<AppLogs>) {
+    let _ = tx.send(AppLogs::Info("[application]: OPTIMIZED MONITOR STARTED".to_string()));
     
     // caching the lists for speed
     // TODO: cache other too
@@ -88,15 +90,15 @@ pub fn start_monitor(keep_running: Arc<AtomicBool>, tx: Sender<String>) {
         // increased sleep to 3 seconds to let CPU cool down
         thread::sleep(Duration::from_secs(3)); 
     }
-    let _ = tx.send("[application]: MONITOR STOPPED".to_string());
+    let _ = tx.send(AppLogs::Info("[application]: MONITOR STOPPED".to_string()));
 }
 
 
 // ------------ Helper functions
-unsafe fn scan_window_titles(tx: &Sender<String>) {
+unsafe fn scan_window_titles(tx: &Sender<AppLogs>) {
     // EnumWindows takes a C-style callback function
     // we pass the Sender `tx` as a pointer (LPARAM) so the callback can use it
-    let param = LPARAM(tx as *const Sender<String> as isize);
+    let param = LPARAM(tx as *const Sender<AppLogs> as isize);
     EnumWindows(Some(enum_window_callback), param);
 }
 
@@ -119,8 +121,8 @@ unsafe extern "system" fn enum_window_callback(hwnd: HWND, lparam: LPARAM) -> BO
             if title.contains(banned_word) {
                 let mut pid = 0;
                 GetWindowThreadProcessId(hwnd, Some(&mut pid));
-                let tx = &*(lparam.0 as *const Sender<String>);
-                let _ = tx.send(format!("[appliaction] [security] BANNED WINDOW: '{}' (PID: {})", title, pid));
+                let tx = &*(lparam.0 as *const Sender<AppLogs>);
+                let _ = tx.send(AppLogs::Violation(ViolationType::Application, format!("[appliaction] [security] BANNED WINDOW: '{}' (PID: {})", title, pid)));
                 break; 
             }
         }
@@ -129,7 +131,7 @@ unsafe extern "system" fn enum_window_callback(hwnd: HWND, lparam: LPARAM) -> BO
     true.into() // for enumeration
 }
 
-unsafe fn scan_optimized(tx: &Sender<String>, exact_set: &HashSet<&str>) {
+unsafe fn scan_optimized(tx: &Sender<AppLogs>, exact_set: &HashSet<&str>) {
     let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
         Ok(h) => h,
         Err(_) => return,
@@ -153,10 +155,10 @@ unsafe fn scan_optimized(tx: &Sender<String>, exact_set: &HashSet<&str>) {
                     if name_str == *rule_name {
                         let real_path = get_process_path(pid).to_lowercase();
                         if !real_path.contains(rule_path) {
-                            let _ = tx.send(format!(
+                            let _ = tx.send(AppLogs::Violation(ViolationType::Application, format!(
                                 "[application] [security] MASQUERADE(renaming cheat) DETECTED: '{}' running from '{}' (Expected: {})", 
                                 name_str, real_path, rule_path
-                            ));
+                            )));
                         }
                         // if path matches, it is explicitly safe
                         is_safe = true;
@@ -194,13 +196,12 @@ unsafe fn scan_optimized(tx: &Sender<String>, exact_set: &HashSet<&str>) {
                                             path.contains("windows\\uus");
 
                         if !is_system_dir {
-                             let _ = tx.send(format!("[application] [security] SUSPICIOUS APP: '{}' in '{}'", name_str, path));
+                             let _ = tx.send(AppLogs::Violation(ViolationType::Application, format!("[application] [security] SUSPICIOUS APP: '{}' in '{}'", name_str, path)));
                         }
                     }
                 }
             }
 
-            // CRITICAL: Always move to next, outside of any IF blocks
             if Process32Next(snapshot, &mut entry).is_err() { break; }
         }
     }
