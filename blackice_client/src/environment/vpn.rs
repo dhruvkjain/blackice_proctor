@@ -5,7 +5,6 @@ use windows::Win32::NetworkManagement::IpHelper::{
 use windows::Win32::NetworkManagement::Ndis::IfOperStatusUp;
 use windows::Win32::Networking::WinSock::AF_UNSPEC;
 
-/// returns Some(vpn_name) if found, otherwise None.
 pub fn scan_for_vpn() -> Option<String> {
     unsafe {
         // initial buffer size (15KB is recommended by Microsoft to avoid 2 calls)
@@ -40,17 +39,15 @@ pub fn scan_for_vpn() -> Option<String> {
             return None; // failed to get adapters
         }
 
-        // iterate the 'Linked List'
         let mut current_adapter = ptr;
         while !current_adapter.is_null() {
             let adapter = &*current_adapter;
 
-            // only check for active adapters i.e. OperStatus == 1 aka 'Up'
             if adapter.OperStatus == IfOperStatusUp {
                 let friendly_name = adapter.FriendlyName.to_string().unwrap_or_default().to_lowercase();
                 let desc = adapter.Description.to_string().unwrap_or_default().to_lowercase();
 
-                // check Blacklist
+                // check blacklist
                 let suspicious = vec![
                     "tap-windows", "vpn", "wireguard", "openvpn", "hamachi", 
                     "fortinet", "tun", "zerotier", "nordlynx", "proton", "windscribe"

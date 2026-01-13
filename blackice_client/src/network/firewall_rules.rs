@@ -8,25 +8,24 @@ const RULE_NAME: &str = "BlackICE_Firewall_TCP_Whitelist";
 const DNS_RULE_NAME: &str = "BlackICE_Firewall_DNS_Whitelist";
 const DHCP_RULE_NAME: &str = "BlackICE_Firewall_DHCP_Whitelist";
 
-// dynamically converted to IPs
 const WHITELIST_DOMAINS: &[&str] = &[
-    // ------------ target sites
+    // target sites
     "codeforces.com:443",
     "www.codeforces.com:443",
     "leetcode.com:443",
     "www.leetcode.com:443",
 
-    // ------------ cloudflare security (codeforces uses it for auth)
+    // cloudflare security (codeforces uses it for auth)
     "challenges.cloudflare.com:443",
 
-    // ------------ Google reCAPTCHA
+    // google recaptcha
     "www.google.com:443",
     "www.gstatic.com:443",
     "fonts.gstatic.com:443",
     "recaptcha.net:443",
     "www.recaptcha.net:443",
 
-    // ------------ CDNs
+    // CDNs
     "cdnjs.cloudflare.com:443",
     "fonts.googleapis.com:443",
     "assets.leetcode.com:443",
@@ -36,11 +35,11 @@ const WHITELIST_DOMAINS: &[&str] = &[
 // this function resolves IPs and applies the Block Policy
 pub fn apply_rules() -> Result<String> {
     unsafe {
-        // initialize COM library (VVIP for Windows APIs)
+        // initialize COM library (imp for Windows APIs)
         let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
     }
 
-    // ------------ Resolve Domains to IPs
+    // resolve domains to IPs
     let mut ip_addresses = Vec::new();
     for domain in WHITELIST_DOMAINS {
         if let Ok(addrs) = domain.to_socket_addrs() {
@@ -57,16 +56,15 @@ pub fn apply_rules() -> Result<String> {
     let ip_list_str = ip_addresses.join(",");
     let count = ip_addresses.len();
 
-    // ------------ Apply Windows Firewall Rules
     unsafe {
         let policy: INetFwPolicy2 = CoCreateInstance(&NetFwPolicy2, None, CLSCTX_ALL)?;
         let rules: INetFwRules = policy.Rules()?;
 
-        // clean up old rules first
+        // clean up old rules
         let _ = rules.Remove(&BSTR::from(RULE_NAME));
         let _ = rules.Remove(&BSTR::from(DNS_RULE_NAME));
 
-        // Create Whitelist Rule (TCP)
+        // Whitelist rule (TCP)
         let new_rule: INetFwRule = CoCreateInstance(&NetFwRule, None, CLSCTX_ALL)?;
         new_rule.SetName(&BSTR::from(RULE_NAME))?;
         new_rule.SetDescription(&BSTR::from("Allow access to whitelist domains"))?;
@@ -77,7 +75,7 @@ pub fn apply_rules() -> Result<String> {
         new_rule.SetRemoteAddresses(&BSTR::from(&ip_list_str))?;
         rules.Add(&new_rule)?;
 
-        // Create DNS Rule (UDP 53)
+        // DNS rule (UDP 53)
         let dns_rule: INetFwRule = CoCreateInstance(&NetFwRule, None, CLSCTX_ALL)?;
         dns_rule.SetName(&BSTR::from(DNS_RULE_NAME))?;
         dns_rule.SetProtocol(NET_FW_IP_PROTOCOL_UDP.0)?;
@@ -87,7 +85,7 @@ pub fn apply_rules() -> Result<String> {
         dns_rule.SetEnabled(true.into())?;
         rules.Add(&dns_rule)?;
 
-        // DHCP Rule (IMP Wifi)
+        // DHCP rule (Wifi)
         let dhcp_rule: INetFwRule = CoCreateInstance(&NetFwRule, None, CLSCTX_ALL)?;
         dhcp_rule.SetName(&BSTR::from(DHCP_RULE_NAME))?;
         dhcp_rule.SetDescription(&BSTR::from("Allow Wi-Fi negotiation"))?;
@@ -99,7 +97,7 @@ pub fn apply_rules() -> Result<String> {
         dhcp_rule.SetEnabled(true.into())?;
         rules.Add(&dhcp_rule)?;
 
-        // LOCK DOWN: Set Default Policy to BLOCK
+        // set default policy to block
         enable_strict_blocking(&policy)?;
     }
 
@@ -130,11 +128,10 @@ pub fn reset_firewall() -> Result<String> {
 }
 
 
-// VVIP this is called by the background thread to update IPs without breaking the connection
+// this function is called by the background thread to update IPs without breaking the connection
 pub fn refresh_whitelist() -> Result<String> {
     unsafe { let _ = CoInitializeEx(None, COINIT_MULTITHREADED); }
 
-    // resolve first, if DNS fails, we abort here so we don't break the firewall
     let ip_list_str = match resolve_all_domains() {
         Ok(s) => s,
         Err(e) => return Ok(format!("[network] [firewall rules] DNS Refresh Skipped: {}", e.message())),
@@ -144,16 +141,12 @@ pub fn refresh_whitelist() -> Result<String> {
         let policy: INetFwPolicy2 = CoCreateInstance(&NetFwPolicy2, None, CLSCTX_ALL)?;
         let rules: INetFwRules = policy.Rules()?;
 
-        // retrieve the existing rule rather than deleting it
-        // this prevents "flickering" (momentary internet loss)
         match rules.Item(&BSTR::from(RULE_NAME)) {
             Ok(rule) => {
-                // update the IPs on the live rule
                 rule.SetRemoteAddresses(&BSTR::from(ip_list_str))?;
                 Ok("[network] [firewall rules] Firewall Rules Updated (Dynamic DNS).".to_string())
             },
             Err(_) => {
-                // if rule doesn't exist, re-apply everything
                 apply_rules()
             }
         }
@@ -161,7 +154,7 @@ pub fn refresh_whitelist() -> Result<String> {
 }
 
 
-// ------------ Helpers functions
+// Helpers functions
 fn resolve_all_domains() -> Result<String> {
     let mut ip_addresses = Vec::new();
     let mut resolved_count = 0;
@@ -177,7 +170,6 @@ fn resolve_all_domains() -> Result<String> {
     }
 
     if ip_addresses.is_empty() {
-        // return a Windows Error if resolution fails completely
         return Err(Error::new(HRESULT(0x80004005_u32 as i32), "DNS Resolution Failed"));
     }
 

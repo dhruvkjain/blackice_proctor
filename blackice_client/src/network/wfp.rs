@@ -7,7 +7,6 @@ use windows::Win32::NetworkManagement::WindowsFilteringPlatform::*;
 use windows::Win32::System::Rpc::RPC_C_AUTHN_WINNT;
 
 
-// randomly generated GUIDs 
 const PROCTOR_PROVIDER_KEY: GUID = GUID::from_u128(0x4B6E8F31_2C5A_4B9A_9F0A_1B2C3D4E5F6A);
 const PROCTOR_SUBLAYER_KEY: GUID = GUID::from_u128(0x8A1B2C3D_4E5F_6A7B_8C9D_0E1F2A3B4C5D);
 
@@ -18,7 +17,7 @@ const ALLOWED_APPS_EXACT: &[&str] = &[
     r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
     r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
     r"C:\Program Files\Mozilla Firefox\firefox.exe",
-    // DEBUG: If I add mongodb connection then add some logic to allow this Proctor app
+    // DEBUG: for mongodb connection add some logic to allow this app
     // r"C:\Users\YourName\...\traffic_control.exe"
     
     // system processes needed for Wifi/DNS
@@ -38,9 +37,10 @@ impl WfpGuard {
         unsafe {
             let mut handle = HANDLE::default();
             
-            // ------------ Open WFP Engine Session
+            // Open WFP Engine Session
             let mut session: FWPM_SESSION0 = zeroed();
-            session.flags = FWPM_SESSION_FLAG_DYNAMIC;          // filters are removed automatically if our app crashes/closes 
+             // removes filters automatically if our app crashes/closes
+            session.flags = FWPM_SESSION_FLAG_DYNAMIC; 
 
             let err = FwpmEngineOpen0(
                 None,
@@ -60,51 +60,47 @@ impl WfpGuard {
 
     pub fn apply_ale_lockdown(&self) -> Result<(), String> {
         unsafe {
-            // ------------ Start Transaction (Atomic Operation)
+            // atart transaction
             let err = FwpmTransactionBegin0(self.engine_handle, 0);
             if err != ERROR_SUCCESS.0 { return Err("[wfp]: Transaction Begin Failed".into()); }
 
-            // ------------ Register Provider (Identification)
+            // register provider
             let mut provider: FWPM_PROVIDER0 = zeroed();
             provider.providerKey = PROCTOR_PROVIDER_KEY;
             provider.displayData.name = wstr("BlackICE Proctor Provider");
             
-            // ignore error if already exists
             let _ = FwpmProviderAdd0(self.engine_handle, &provider, None);
 
-            // ------------ Create Sublayer
+            // creating sublayer
             let mut sublayer: FWPM_SUBLAYER0 = zeroed();
             sublayer.subLayerKey = PROCTOR_SUBLAYER_KEY;
             sublayer.displayData.name = wstr("BlackICE Proctor Lock Layer");
             sublayer.providerKey = &PROCTOR_PROVIDER_KEY as *const GUID as *mut GUID;
-            sublayer.weight = 0xFFFF; // max weight to override others
+            // max weight to override others
+            sublayer.weight = 0xFFFF;
             
             let _ = FwpmSubLayerAdd0(self.engine_handle, &sublayer, None);
 
-            // ------------ 1st Filter: Block All Filter 
             // block all IPv4 'Outbound' TCP traffic at the 'ALE' layer.
             self.add_filter(
                 "Block All Outbound",
                 FWPM_LAYER_ALE_AUTH_CONNECT_V4,
                 FWP_ACTION_BLOCK,
-                1, // Low priority
-                None // No conditions = Match All
+                1,
+                None
             )?;
 
-            // ------------ 2nd Filter: Permit Whitelist
+            // permit whitelist filter
             for (i, app_path) in ALLOWED_APPS_EXACT.iter().enumerate() {
-               // only attempt if file exists, as otherwise GetAppId fails
                 if !Path::new(app_path).exists() {
                     println!("Skipping missing app: {}", app_path);
                     continue; 
                 }
 
-                // convert path to App ID blob
                 let mut app_id_blob: *mut FWP_BYTE_BLOB = std::ptr::null_mut();
                 let err = FwpmGetAppIdFromFileName0(wstr(app_path), &mut app_id_blob);
                 
                 if err == ERROR_SUCCESS.0 && !app_id_blob.is_null() {
-                    // create condition
                     let mut condition: FWPM_FILTER_CONDITION0 = zeroed();
                     condition.fieldKey = FWPM_CONDITION_ALE_APP_ID; 
                     condition.matchType = FWP_MATCH_EQUAL;
@@ -112,8 +108,7 @@ impl WfpGuard {
                     condition.conditionValue.Anonymous.byteBlob = app_id_blob;
 
                     let filter_name = format!("Permit App {}", i);
-                    
-                    // Add Filter
+
                     let res = self.add_filter(
                         &filter_name,
                         FWPM_LAYER_ALE_AUTH_CONNECT_V4,
@@ -133,7 +128,6 @@ impl WfpGuard {
                 }
             }
 
-            // commit Transaction
             let err = FwpmTransactionCommit0(self.engine_handle);
             if err != ERROR_SUCCESS.0 { return Err("[wfp]: WFP Commit Failed".into()); }
 
@@ -150,7 +144,7 @@ impl WfpGuard {
         conditions: Option<&[FWPM_FILTER_CONDITION0]>,
     ) -> Result<(), String> {
         let mut filter: FWPM_FILTER0 = zeroed();
-        filter.filterKey = GUID::new().unwrap(); // random GUID for this specific rule
+        filter.filterKey = GUID::new().unwrap();
         filter.providerKey = &PROCTOR_PROVIDER_KEY as *const GUID as *mut GUID;
         filter.subLayerKey = PROCTOR_SUBLAYER_KEY;
         filter.layerKey = layer_key;
@@ -177,24 +171,17 @@ impl WfpGuard {
 impl Drop for WfpGuard {
     fn drop(&mut self) {
         unsafe {
-            // because we used FWPM_SESSION_FLAG_DYNAMIC, Windows will 
-            // cleanup our filters automatically when the handle closes
             let _ = FwpmEngineClose0(self.engine_handle);
         }
     }
 }
 
-// ------------ Helper functions
+// Helper functions
 
-// Wide Strings (Windows uses UTF-16)
+// wide strings (Windows uses UTF-16)
 fn wstr(s: &str) -> PWSTR {
     let encoded: Vec<u16> = s.encode_utf16().chain(std::iter::once(0)).collect();
-    // LEAK: We leak memory here for simplicity of the snippet. 
-    // In production, you should manage the lifetime of these strings carefully 
-    // or keep the Vec<u16> alive as long as the struct using it.
-    // However, for FwpmFilterAdd0, the engine copies the data, so a temporary leak 
-    // or careful pointer management is needed.
-    // For this snippet, we box and leak to ensure validity during the call.
+    
     let boxed = encoded.into_boxed_slice();
     let ptr = Box::leak(boxed).as_mut_ptr(); 
     PWSTR(ptr)

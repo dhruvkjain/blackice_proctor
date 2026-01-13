@@ -2,7 +2,6 @@ use eframe::{egui, egui::IconData};
 use blackice_proctor::{ProctorApp, network, ReporterActor};
 
 fn main() -> Result<(), eframe::Error> {
-    // panic hook
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
         eprintln!("[main]: PANIC DETECTED! EMERGENCY FIREWALL RESET INITIATED");

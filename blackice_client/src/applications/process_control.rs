@@ -15,7 +15,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 use crate::cloud_reporter::{AppLogs, ViolationType};
 
 
-// STRICT PATH BINDING
+// strict path binding
 const STRICT_PATHS: &[(&str, &str)] = &[
     ("chrome.exe", "google\\chrome"),
     ("brave.exe", "brave-browser"),
@@ -25,13 +25,13 @@ const STRICT_PATHS: &[(&str, &str)] = &[
     ("notepad.exe", "windows\\system32"),
 ];
 
-// EXACT NAME MATCH IGNORE LIST
+// exact name match
 const WHITELIST_NAMES: &[&str] = &[
-    // ------------ Windows Kernel / Virtual
+    // windows kernel / virtual
     "secure system", "registry", "memory compression", "system",
     "monotificationux.exe",          // Windows Update Notifications
     
-    // ------------ Windows Modern UI Components
+    // windows modern UI components
     "textinputhost.exe",             // On-screen keyboard/emoji logic
     "lockapp.exe",                   // Lock screen
     "crossdeviceresume.exe",         // Phone Link
@@ -41,22 +41,22 @@ const WHITELIST_NAMES: &[&str] = &[
     "systemsettings.exe",            // Windows Settings App
     "smartscreen.exe",               // Windows Defender SmartScreen
     
-    // ------------ Background Services
+    // background services
     "postgres.exe", "pg_ctl.exe", "wslservice.exe",
     "docker.exe", "dockerd.exe", "officeclicktorun.exe", "onedrive.exe",
-    "uihost.exe" // Mcafee
+    "uihost.exe"
 ];
 
-// PARTIAL MATCH IGNORE LIST
+// partial name match
 const WHITELIST_PARTIALS: &[&str] = &[
     "intel", "dell", "nvidia", "amd", "realtek", 
-    "google", "microsoft", "windows", "adsk", // Autodesk
-    "jhi_", "ipf", "rstmw", "igcc", "wudf",   // Driver hosts
-    "fontdrv", "mpdefender", "msmpeng",       // Windows Defender/Fonts
+    "google", "microsoft", "windows", "adsk",
+    "jhi_", "ipf", "rstmw", "igcc", "wudf",
+    "fontdrv", "mpdefender", "msmpeng",
     "rust-analyzer", "onedrive",
 ];
 
-// BANNED WINDOW TITLES (even if user renames .exe file the windows title is set programatically by appliaction developer)
+// banned window titles (even if user renames .exe file the windows title is set programatically by appliaction developer)
 const BANNED_TITLES: &[&str] = &[
     "cheat engine",
     "proton vpn", 
@@ -76,7 +76,6 @@ const BANNED_TITLES: &[&str] = &[
 pub fn start_monitor(keep_running: Arc<AtomicBool>, tx: Sender<AppLogs>) {
     let _ = tx.send(AppLogs::Info("[application]: OPTIMIZED MONITOR STARTED".to_string()));
     
-    // caching the lists for speed
     // TODO: cache other too
     let exact_set: HashSet<&str> = WHITELIST_NAMES.iter().cloned().collect();
     
@@ -87,31 +86,22 @@ pub fn start_monitor(keep_running: Arc<AtomicBool>, tx: Sender<AppLogs>) {
             // scan 'open window' / 'visible' Windows titles
             scan_window_titles(&tx);
         }
-        // increased sleep to 3 seconds to let CPU cool down
         thread::sleep(Duration::from_secs(3)); 
     }
     let _ = tx.send(AppLogs::Info("[application]: MONITOR STOPPED".to_string()));
 }
 
-
-// ------------ Helper functions
 unsafe fn scan_window_titles(tx: &Sender<AppLogs>) {
-    // EnumWindows takes a C-style callback function
-    // we pass the Sender `tx` as a pointer (LPARAM) so the callback can use it
     let param = LPARAM(tx as *const Sender<AppLogs> as isize);
     EnumWindows(Some(enum_window_callback), param);
 }
 
 // this function is called by Windows for every single 'open window' / 'visible'
 unsafe extern "system" fn enum_window_callback(hwnd: HWND, lparam: LPARAM) -> BOOL {
-    // ignore invisible windows (background apps)
-    // in Windows almost everyhing is a window including windows internel services 
-    // therefore ignore all non UI windows
     if !IsWindowVisible(hwnd).as_bool() {
-        return true.into(); // continue to next window
+        return true.into();
     }
 
-    // get the Window Title
     let mut buffer = [0u16; 512];
     let len = GetWindowTextW(hwnd, &mut buffer);
 
@@ -128,7 +118,7 @@ unsafe extern "system" fn enum_window_callback(hwnd: HWND, lparam: LPARAM) -> BO
         }
     }
 
-    true.into() // for enumeration
+    true.into()
 }
 
 unsafe fn scan_optimized(tx: &Sender<AppLogs>, exact_set: &HashSet<&str>) {
@@ -160,7 +150,7 @@ unsafe fn scan_optimized(tx: &Sender<AppLogs>, exact_set: &HashSet<&str>) {
                                 name_str, real_path, rule_path
                             )));
                         }
-                        // if path matches, it is explicitly safe
+                        // if path matches
                         is_safe = true;
                         break;
                     }

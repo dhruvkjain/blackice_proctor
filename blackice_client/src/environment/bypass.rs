@@ -28,8 +28,6 @@ impl SecurityCheck {
 fn detect_vm() -> Option<String> {
     let cpuid = CpuId::new();
     
-    // check if Hypervisor bit is set
-    // if this is false, it's definitely bare metal (or a very stealthy VM)
     let has_hypervisor = cpuid.get_feature_info()
         .map(|info| info.has_hypervisor())
         .unwrap_or(false);
@@ -38,29 +36,15 @@ fn detect_vm() -> Option<String> {
         return None;
     }
 
-    // check the Hypervisor Vendor ID
     if let Some(hv) = cpuid.get_hypervisor_info() {
-        // raw_cpuid creates a 12-char string from registers ebx, ecx, edx
-        // We can't access the string directly easily in older versions, 
-        // but we can check the registers or use debug output.
-        // The safest way in Rust 'raw_cpuid' is to match specific signatures.
-        
-        // This relies on internal register values, but raw_cpuid usually doesn't expose the string 
-        // directly in a safe cross-platform way without bit manipulation.
-        // Let's assume standard signatures:
-        
-        // However, a simpler heuristic for your case:
-        // Identify if it is MICROSOFT (Safe-ish) or OTHERS (Bad).
-        
-        // Let's try a register scan helper approach or use the debug format hack
         let vendor_debug = format!("{:?}", hv); 
         
-       // 1. ALLOWED HYPERVISORS (Windows Core Isolation / WSL2 / Docker)
+        // allowed
         if vendor_debug.contains("Microsoft Hv") || vendor_debug.contains("HyperV") {
-            return None; // Safe
+            return None;
         }
 
-        // 2. BANNED HYPERVISORS (The Cheating Tools)
+        // banned
         if vendor_debug.contains("VMware") { 
             return Some("VMware Workstation/Player".to_string()); 
         }
@@ -89,11 +73,9 @@ fn detect_vm() -> Option<String> {
     None
 }
 
-// CLIPBOARD NUKE
 // prevents copying code from a local text file to the browser
 pub fn clear_clipboard() {
     unsafe {
-        // tries to open clipboard (Window handle 0 = current task)
         if OpenClipboard(None).is_ok() {
             let _ = EmptyClipboard();
             let _ = CloseClipboard();
@@ -107,7 +89,6 @@ pub fn scan_environment() -> Option<String> {
     let mut violations: Vec<String> = Vec::new();
 
     if let Some(vendor) = checks.vm_vendor {
-        // DEV MODE BYPASS LOGIC this is for testing only 
         if cfg!(debug_assertions) {
              println!("[DEBUG WARNING]: Virtual Machine detected ({}) - Ignored for Dev.", vendor);
         } else {

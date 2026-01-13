@@ -16,7 +16,6 @@ pub async fn init_db() -> DbResult<AppState> {
     
     let db = client.database("proctor_db");
 
-    // create new time-series db 'if not present'
     use mongodb::options::CreateCollectionOptions;
     use mongodb::options::TimeseriesOptions;
     use mongodb::bson::doc;

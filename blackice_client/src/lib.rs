@@ -18,23 +18,21 @@ pub use network::*;
 
 
 pub struct ProctorApp {
-    net_active: bool,  // internet blocking service active flag
-    proc_active: bool, // application / processes blocking service active flag
-    is_loading: bool,  // ui loading flag
+    net_active: bool,
+    proc_active: bool,
+    is_loading: bool,
     logs: Vec<String>,
 
-    watchdog_signal: Arc<AtomicBool>, // thread controller for application blocking
-    dns_signal: Arc<AtomicBool>,      // thread controller for network blocking
+    watchdog_signal: Arc<AtomicBool>,
+    dns_signal: Arc<AtomicBool>,
 
-    // communication channels
     msg_sender: Sender<AppLogs>,
     msg_receiver: Receiver<AppLogs>,
     reporter_tx: Sender<LogEntry>,
 
-    wfp_guard: Option<network::WfpGuard>, // wfp handler
+    wfp_guard: Option<network::WfpGuard>,
 }
 
-// Dead Man's Switch, if user suddenly closes or kills the applicaiton we need to drop the rules and restrictions
 impl Drop for ProctorApp {
     fn drop(&mut self) {
         println!("Application is closing...");
@@ -238,14 +236,13 @@ impl ProctorApp {
     fn toggle_network(&mut self) {
         if self.is_loading {
             return;
-        } // prevents double clicks
-        self.is_loading = true; // lock UI
+        }
+        self.is_loading = true;
 
-        // clone sender for the thread
         let tx = self.msg_sender.clone();
 
         if !self.net_active {
-            // ------------ Locking Logic
+            // Locking Logic
             self.log("[network]: Initializing Lockdown (Resolving DNS & Hashing Apps)...");
 
             thread::spawn(move || {
@@ -292,7 +289,7 @@ impl ProctorApp {
                 }
             });
         } else {
-            // ------------ UnLocking Logic
+            // UnLocking Logic
             self.log("[network]: Disabling Locks...");
             thread::spawn(move || match network::reset_firewall() {
                 Ok(_) => tx.send(AppLogs::UnlockSuccess).ok(),
@@ -335,7 +332,7 @@ impl ProctorApp {
             let tx = self.msg_sender.clone();
             let signal = self.watchdog_signal.clone();
 
-            // ------------ Security Thread
+            // Security Thread
             thread::spawn(move || {
                 tx.send(AppLogs::Info(
                     "[security]: Security and Process Monitor Started".into(),
@@ -349,26 +346,17 @@ impl ProctorApp {
                         violation
                     )))
                     .ok();
-                    // Optional: auto-close app if violation is severe
-                    // std::process::exit(1);
                 }
-
-                // We need to run the process monitor AND the bypass checks together
-                // Since 'applications::start_monitor' contains its own loop, we can't just call it directly
-                // without blocking the clipboard check
-                // Therefore here we ran them in parallel
 
                 let (local_tx, local_rx) = channel::<AppLogs>();
                 let signal_for_app_mon = signal.clone();
 
-                // spawn the process monitor in its own sub-thread
                 thread::spawn(move || {
                     applications::start_monitor(signal_for_app_mon, local_tx);
                 });
 
-                // run the Security checks (The "Lock") in THIS thread while listening for logs
                 while signal.load(Ordering::Relaxed) {
-                    environment::clear_clipboard(); // Nuke clipboard
+                    environment::clear_clipboard();
 
                     // checking for RDP (Remote Desktop) dynamically
                     use windows::Win32::UI::WindowsAndMessaging::{
@@ -384,8 +372,6 @@ impl ProctorApp {
                         }
                     }
 
-                    // forward logs from process monitor
-                    // here we used try_recv so we don't block the loop waiting for a log message
                     while let Ok(msg) = local_rx.try_recv() {
                         tx.send(msg).ok();
                     }

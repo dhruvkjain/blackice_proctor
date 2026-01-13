@@ -22,7 +22,6 @@ pub struct ReporterActor {
 }
 
 impl ReporterActor {
-    /// Spawns the background thread and returns the Sender to be used by the UI
     pub fn spawn(api_url: String) -> Sender<LogEntry> {
         let (tx, rx) = channel();
 
@@ -32,7 +31,7 @@ impl ReporterActor {
                 buffer: Vec::with_capacity(50),
                 client: Client::new(),
                 api_url,
-                flush_interval: Duration::from_secs(10), // Flush every 10s
+                flush_interval: Duration::from_secs(10), // flush every 10s
             };
             actor.run();
         });
@@ -44,34 +43,30 @@ impl ReporterActor {
         let mut last_flush = Instant::now();
 
         loop {
-            // Calculate how much time is left before we MUST flush
             let elapsed = last_flush.elapsed();
             let timeout = if elapsed >= self.flush_interval {
-                Duration::from_millis(1) // Flush immediately
+                Duration::from_millis(1)
             } else {
                 self.flush_interval - elapsed
             };
 
-            // Wait for a message OR the timeout
             match self.rx.recv_timeout(timeout) {
                 Ok(log) => {
                     self.buffer.push(log);
                     
-                    // Buffer Full Strategy: Flush immediately
+                    // buffer full => flush immediately
                     if self.buffer.len() >= 50 {
                         self.flush();
                         last_flush = Instant::now();
                     }
                 }
                 Err(RecvTimeoutError::Timeout) => {
-                    // Time-based Strategy: Flush whatever we have
                     if !self.buffer.is_empty() {
                         self.flush();
                     }
                     last_flush = Instant::now();
                 }
                 Err(RecvTimeoutError::Disconnected) => {
-                    // The main app has closed (Sender dropped), finish up and exit
                     if !self.buffer.is_empty() {
                         self.flush();
                     }
@@ -86,11 +81,8 @@ impl ReporterActor {
 
         println!("[Reporter] Flushing {} logs...", self.buffer.len());
 
-        // We take the buffer content to send, leaving the vector empty but with capacity
         let batch = std::mem::take(&mut self.buffer); 
         
-        // This is a SYNCHRONOUS blocking call. 
-        // Since we are in a separate thread, it won't freeze the UI.
         match self.client.post(&self.api_url).json(&batch).send() {
             Ok(resp) => {
                 if !resp.status().is_success() {

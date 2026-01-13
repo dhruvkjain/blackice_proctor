@@ -4,9 +4,9 @@ use serde::{Deserialize, Serialize};
 pub struct LogEntry {
     pub student_id: String,
     pub session_id: String,
-    pub level: String,     // replace with proper enum with INFO, ERROR, VIOLATION etc...
+    pub level: String,
     pub message: String,
-    pub timestamp: i64,    // Unix Timestamp
+    pub timestamp: i64,
 }
 
 #[derive(Serialize)]
